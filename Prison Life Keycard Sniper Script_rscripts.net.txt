@@ -1,4 +1,5 @@
--- pro shit
+-- This is a standalone, executable script to perform the keycard pickup.
+-- It uses the confirmed anti-kick TP sequence and invokes the server
 -- using the specific ITEMPICKUP Instance as the argument.
 
 local playersService = game:GetService("Players")
@@ -27,13 +28,13 @@ local tp4 = CFrame.new(-924, 94, 2045) -- Final scanning position
 
 -- Function to find the specific ITEMPICKUP instance using recursive search
 local function findPickupInstance()
-    -- CRITICAL FIX: Use recursive search FindFirstChild("Key card", true) under Prison_ITEMS
-    local prisonItems = workspace:FindFirstChild("Prison_ITEMS", true)
+    -- CRITICAL FIX: Search the entire WORKSPACE recursively for the "Key card" model
     
-    -- Recursively find the Key card Model anywhere nested under Prison_ITEMS
-    local keycardModel = prisonItems and prisonItems:FindFirstChild("Key card", true)
+    -- Recursively find the Key card Model anywhere nested under Workspace
+    local keycardModel = workspace:FindFirstChild("Key card", true)
     
     -- If the Keycard Model is found, find the ITEMPICKUP Part inside it
+    -- This ITEMPICKUP part is the argument required by the remote function
     local pickupPart = keycardModel and keycardModel:FindFirstChild("ITEMPICKUP")
     
     return pickupPart, keycardModel -- Return the ITEMPICKUP part and the parent Model (for the hop)
@@ -56,20 +57,20 @@ task.spawn(function()
     rootPart.CFrame = tp4 -- Final Scan Position
     task.wait(0.35) 
 
-    print("Initial sequence complete. Waiting for ITEMPICKUP instance to appear using recursive search...")
+    print("Initial sequence complete. Waiting for ITEMPICKUP instance to appear in the WORKSPACE...")
     
     local pickupPart = nil
     local keycardModel = nil
     local waitStartTime = tick()
 
-    -- 2. WAIT FOR THE SPECIFIC ITEMPICKUP INSTANCE TO APPEAR AT THE EXPECTED PATH
+    -- 2. WAIT FOR THE SPECIFIC ITEMPICKUP INSTANCE TO APPEAR
     while not pickupPart and (tick() - waitStartTime < 60) do -- Wait up to 60 seconds
         pickupPart, keycardModel = findPickupInstance()
         task.wait(0.5) 
     end
     
     if not pickupPart then
-        warn("Timeout reached. The required ITEMPICKUP instance did not appear in Prison_ITEMS.")
+        warn("Timeout reached. The required ITEMPICKUP instance did not appear in the WORKSPACE.")
         rootPart.CFrame = startCFrame
         return
     end
