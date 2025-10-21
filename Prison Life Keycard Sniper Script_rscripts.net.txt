@@ -1,4 +1,5 @@
--- pro shit 
+-- This is the INSANELY SIMPLE, bare-bones executable script.
+-- It performs NO ANTI-CHEAT TPS and NO cleanup.
 
 local playersService = game:GetService("Players")
 local workspace = game:GetService("Workspace")
@@ -6,33 +7,36 @@ local lplr = playersService.LocalPlayer
 local character = lplr.Character or lplr.CharacterAdded:Wait()
 local rootPart = character:WaitForChild("HumanoidRootPart")
 
+-- 1. Setup Remotes (Essential)
 local remote = workspace:WaitForChild("Remote", 10)
 local itemHandler = remote and remote:WaitForChild("ItemHandler", 10)
 
 if not itemHandler or not itemHandler:IsA("RemoteFunction") then 
-    return
+    return -- Exit if remote handler is not found
 end
 
+-- 2. Define Pickup Part (The definitive argument for InvokeServer)
+-- FIX: Changed capitalization from Prison_ITEMS to prison_ITEMS
 local prisonItems = workspace:FindFirstChild("prison_ITEMS")
 local pickupArgument = prisonItems and prisonItems:FindFirstChild("Key card", true) and prisonItems:FindFirstChild("Key card", true):FindFirstChild("ITEMPICKUP")
 
 if not pickupArgument then
-    return 
+    return -- Exit if the required argument instance is not found
 end
 
+
+-- --- Main Execution Sequence ---
 task.spawn(function()
     local keycardModel = nil
-    local waitStartTime = tick()
-
-    while not keycardModel and (tick() - waitStartTime < 60) do
+    
+    -- A. WAIT FOR KEYCARD IN DIRECT WORKSPACE CHILDREN (Runs indefinitely until found)
+    while not keycardModel do
+        -- Only checks for an item named "Key card" directly under workspace
         keycardModel = workspace:FindFirstChild("Key card")
         task.wait(0.5) 
     end
     
-    if not keycardModel then
-        return
-    end
-    
+    -- B. JUMP ON TOP ONCE (TP to the Key card model)
     local centerCFrame, size
     
     pcall(function()
@@ -44,21 +48,25 @@ task.spawn(function()
         rootPart.CFrame = onTopCFrame 
         task.wait(0.1) 
     else
-
+        -- Fallback: Teleport to the center of the Key card's primary part/center position
+        -- NOTE: This assumes PrimaryPart exists, otherwise it will error.
         rootPart.CFrame = keycardModel.PrimaryPart.CFrame * CFrame.new(0, 3, 0)
         task.wait(0.1)
     end
     
     
+    -- C. AGGRESSIVE INVOKE LOOP until Pickup Confirmed
     local loopStartTime = tick()
     
+    -- Loop while the item still exists (and up to a maximum of 10 seconds)
     while workspace:FindFirstChild("Key card") and (tick() - loopStartTime < 10) do
         
+        -- The confirmed fix: Repeatedly invoke the server with the definitive prison_ITEMS Instance
         pcall(function()
             itemHandler:InvokeServer(pickupArgument)
         end)
         
-        task.wait(0.1)
+        task.wait(0.1) -- The required cooldown between calls
     end
     
 end)
