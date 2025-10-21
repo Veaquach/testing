@@ -10,8 +10,6 @@ local rootPart = character:WaitForChild("HumanoidRootPart")
 
 -- 1. Configuration & Remote Setup
 local remoteContainer = workspace:WaitForChild("Remote", 10)
-local remote = remoteContainer and remoteContainer:FindFirstChild("ItemHandler", 10) -- Used FindFirstChild instead of WaitForChild just in case
--- Reverted to WaitForChild for ItemHandler to ensure stability
 local remote = remoteContainer and remoteContainer:WaitForChild("ItemHandler", 10)
 
 if not remote or not remote:IsA("RemoteFunction") then 
@@ -77,7 +75,7 @@ task.spawn(function()
         return
     end
 
-    print("ITEMPICKUP instance found. Initiating pickup...")
+    print("ITEMPICKUP instance found. Initiating pickup loop...")
     
     -- 3. Single Teleport Hop onto the Keycard's location
     
@@ -101,19 +99,36 @@ task.spawn(function()
         warn("Using ITEMPICKUP Part CFrame for hop. Bounding box failed.")
     end
     
-    -- 4. CRITICAL: Invoke the server using the ITEMPICKUP INSTANCE as the argument
-    pcall(function()
-        -- Loop to ensure pickup registers
-        for i = 1, 15 do 
+    -- 4. CRITICAL: Invoke Loop until Pickup Confirmed (ITEMPICKUP disappears)
+    local pickupConfirmed = false
+    local loopStartTime = tick()
+    
+    while not pickupConfirmed and (tick() - loopStartTime < 10) do -- Loop for a max of 10 seconds
+        
+        -- Try to invoke the server with the ITEMPICKUP Instance
+        pcall(function()
             remote:InvokeServer(pickupPart) -- Pass the ITEMPICKUP Instance
-            task.wait(0.1) 
+        end)
+        
+        task.wait(0.1) -- The required cooldown between calls
+        
+        -- Check if the item is still there
+        local currentPickupPart, _ = findPickupInstance()
+        if not currentPickupPart then
+            pickupConfirmed = true
+            print("Pickup confirmed! ITEMPICKUP instance is gone.")
+            break
         end
-    end)
+    end
+    
+    if not pickupConfirmed then
+        warn("Pickup loop finished without confirmation. Check inventory manually.")
+    end
     
     -- 5. FINAL TELEPORT AND CLEANUP
     rootPart.CFrame = tp4
     task.wait(0.1)
     rootPart.CFrame = startCFrame
     
-    print("Keycard pickup sequence executed. Check inventory.")
+    print("Keycard pickup sequence executed. Script finished.")
 end)
