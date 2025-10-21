@@ -1,0 +1,119 @@
+-- This is a standalone, executable script to perform the keycard pickup.
+-- It uses the confirmed anti-kick TP sequence and invokes the server
+-- using the specific ITEMPICKUP Instance as the argument.
+
+local playersService = game:GetService("Players")
+local workspace = game:GetService("Workspace")
+local lplr = playersService.LocalPlayer
+local character = lplr.Character or lplr.CharacterAdded:Wait()
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- 1. Configuration & Remote Setup
+local remoteContainer = workspace:WaitForChild("Remote", 10)
+local remote = remoteContainer and remoteContainer:FindFirstChild("ItemHandler", 10) -- Used FindFirstChild instead of WaitForChild just in case
+-- Reverted to WaitForChild for ItemHandler to ensure stability
+local remote = remoteContainer and remoteContainer:WaitForChild("ItemHandler", 10)
+
+if not remote or not remote:IsA("RemoteFunction") then 
+    warn("ERROR: Failed to find RemoteFunction ItemHandler! Pickup cannot be executed.")
+    return
+end
+
+-- Save original position for return trip
+local startCFrame = rootPart.CFrame
+
+-- Define TPs
+local tp1 = CFrame.new(814, 101, 2217)
+local tp2 = CFrame.new(820, 101, 2217)
+local tp3 = CFrame.new(-922, 94, 2052)
+local tp4 = CFrame.new(-924, 94, 2045) -- Final scanning position
+
+-- Function to find the specific ITEMPICKUP instance using recursive search
+local function findPickupInstance()
+    -- CRITICAL FIX: Use recursive search FindFirstChild("Key card", true) under Prison_ITEMS
+    local prisonItems = workspace:FindFirstChild("Prison_ITEMS", true)
+    
+    -- Recursively find the Key card Model anywhere nested under Prison_ITEMS
+    local keycardModel = prisonItems and prisonItems:FindFirstChild("Key card", true)
+    
+    -- If the Keycard Model is found, find the ITEMPICKUP Part inside it
+    local pickupPart = keycardModel and keycardModel:FindFirstChild("ITEMPICKUP")
+    
+    return pickupPart, keycardModel -- Return the ITEMPICKUP part and the parent Model (for the hop)
+end
+
+-- --- Main Execution Sequence ---
+task.spawn(function()
+    
+    -- 1. EXECUTE INITIAL TELEPORT SEQUENCE
+    
+    rootPart.CFrame = tp1
+    task.wait(0.35) 
+
+    rootPart.CFrame = tp2
+    task.wait(0.35) 
+
+    rootPart.CFrame = tp3
+    task.wait(0.65) -- Longer cooldown
+
+    rootPart.CFrame = tp4 -- Final Scan Position
+    task.wait(0.35) 
+
+    print("Initial sequence complete. Waiting for ITEMPICKUP instance to appear using recursive search...")
+    
+    local pickupPart = nil
+    local keycardModel = nil
+    local waitStartTime = tick()
+
+    -- 2. WAIT FOR THE SPECIFIC ITEMPICKUP INSTANCE TO APPEAR AT THE EXPECTED PATH
+    while not pickupPart and (tick() - waitStartTime < 60) do -- Wait up to 60 seconds
+        pickupPart, keycardModel = findPickupInstance()
+        task.wait(0.5) 
+    end
+    
+    if not pickupPart then
+        warn("Timeout reached. The required ITEMPICKUP instance did not appear in Prison_ITEMS.")
+        rootPart.CFrame = startCFrame
+        return
+    end
+
+    print("ITEMPICKUP instance found. Initiating pickup...")
+    
+    -- 3. Single Teleport Hop onto the Keycard's location
+    
+    local hopPosition = nil
+    if keycardModel then
+        local centerCFrame, size
+        pcall(function() centerCFrame, size = keycardModel:GetBoundingBox() end)
+        if centerCFrame then
+            -- Hop slightly above the center of the keycard model
+            hopPosition = centerCFrame * CFrame.new(0, size.Y / 2 + 3, 0)
+        end
+    end
+    
+    if hopPosition then
+        rootPart.CFrame = hopPosition 
+        task.wait(0.1) 
+    else
+        -- Fallback to the ITEMPICKUP part's position if model bounding box failed
+        rootPart.CFrame = pickupPart.CFrame * CFrame.new(0, 3, 0)
+        task.wait(0.1)
+        warn("Using ITEMPICKUP Part CFrame for hop. Bounding box failed.")
+    end
+    
+    -- 4. CRITICAL: Invoke the server using the ITEMPICKUP INSTANCE as the argument
+    pcall(function()
+        -- Loop to ensure pickup registers
+        for i = 1, 15 do 
+            remote:InvokeServer(pickupPart) -- Pass the ITEMPICKUP Instance
+            task.wait(0.1) 
+        end
+    end)
+    
+    -- 5. FINAL TELEPORT AND CLEANUP
+    rootPart.CFrame = tp4
+    task.wait(0.1)
+    rootPart.CFrame = startCFrame
+    
+    print("Keycard pickup sequence executed. Check inventory.")
+end)
