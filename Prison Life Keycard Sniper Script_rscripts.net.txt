@@ -1,124 +1,64 @@
--- This is the FINAL, executable script combining the reliable TP hop 
--- and the aggressive InvokeServer loop using the Keycard Instance.
+-- pro shit 
 
 local playersService = game:GetService("Players")
 local workspace = game:GetService("Workspace")
 local lplr = playersService.LocalPlayer
+local character = lplr.Character or lplr.CharacterAdded:Wait()
+local rootPart = character:WaitForChild("HumanoidRootPart")
 
--- 1. Configuration & Remote Setup
 local remote = workspace:WaitForChild("Remote", 10)
 local itemHandler = remote and remote:WaitForChild("ItemHandler", 10)
 
 if not itemHandler or not itemHandler:IsA("RemoteFunction") then 
-    -- If remote fails, stop the script immediately.
     return
 end
 
--- Function to find the Key card Model and the ITEMPICKUP instance
-local function findPickupModelAndPart()
-    local keycardModel = nil
-    local pickupPart = nil
-    
-    -- Strategy 1: Search the entire Workspace (for dropped items)
-    keycardModel = workspace:FindFirstChild("Key card", true)
-    
-    if keycardModel then
-        -- Found in Workspace: use the part within it
-        pickupPart = keycardModel:FindFirstChild("ITEMPICKUP")
-    else
-        -- Strategy 2 (Fallback): Check the known Prison_ITEMS path
-        local prisonItems = workspace:FindFirstChild("Prison_ITEMS")
-        if prisonItems then
-            keycardModel = prisonItems:FindFirstChild("Key card", true)
-            pickupPart = keycardModel and keycardModel:FindFirstChild("ITEMPICKUP")
-        end
-    end
-    
-    -- Return both the Model (for teleporting to) and the Part (for the InvokeServer argument)
-    return keycardModel, pickupPart 
+local prisonItems = workspace:FindFirstChild("prison_ITEMS")
+local pickupArgument = prisonItems and prisonItems:FindFirstChild("Key card", true) and prisonItems:FindFirstChild("Key card", true):FindFirstChild("ITEMPICKUP")
+
+if not pickupArgument then
+    return 
 end
 
--- --- Main Execution Sequence ---
 task.spawn(function()
-    local character = lplr.Character or lplr.CharacterAdded:Wait()
-    local rootPart = character:WaitForChild("HumanoidRootPart")
-    
-    local startCFrame = rootPart.CFrame
-
-    -- Define TPs
-    local tp1 = CFrame.new(814, 101, 2217)
-    local tp2 = CFrame.new(820, 101, 2217)
-    local tp3 = CFrame.new(-922, 94, 2052)
-    local tp4 = CFrame.new(-924, 94, 2045) -- Final scanning position
-    
-    -- 1. EXECUTE INITIAL TELEPORT SEQUENCE
-    
-    rootPart.CFrame = tp1
-    task.wait(0.35) 
-
-    rootPart.CFrame = tp2
-    task.wait(0.35) 
-
-    rootPart.CFrame = tp3
-    task.wait(0.65)
-
-    rootPart.CFrame = tp4
-    task.wait(0.35) 
-
-    
     local keycardModel = nil
-    local pickupPart = nil
     local waitStartTime = tick()
 
-    -- 2. WAIT FOR THE ITEMPICKUP INSTANCE (Max 60 seconds)
-    while not pickupPart and (tick() - waitStartTime < 60) do
-        keycardModel, pickupPart = findPickupModelAndPart()
+    while not keycardModel and (tick() - waitStartTime < 60) do
+        keycardModel = workspace:FindFirstChild("Key card")
         task.wait(0.5) 
     end
     
-    if not pickupPart then
-        rootPart.CFrame = startCFrame
-        return -- Item not found, return to start and exit.
+    if not keycardModel then
+        return
     end
     
-    -- 3. JUMP ON TOP ONCE (Using GetBoundingBox for robust TP hop)
     local centerCFrame, size
     
     pcall(function()
-        -- Attempt to get the CFrame from the model (robust method)
-        -- We use keycardModel here because it's the Parent of all the parts
         centerCFrame, size = keycardModel:GetBoundingBox()
     end)
     
     if centerCFrame then
-        -- Teleport 3 studs above the model's bounding box center
         local onTopCFrame = centerCFrame * CFrame.new(0, size.Y / 2 + 3, 0)
         rootPart.CFrame = onTopCFrame 
         task.wait(0.1) 
     else
-        -- Fallback if GetBoundingBox fails: Teleport to the center of the ITEMPICKUP part
-        rootPart.CFrame = pickupPart.CFrame * CFrame.new(0, 3, 0)
+
+        rootPart.CFrame = keycardModel.PrimaryPart.CFrame * CFrame.new(0, 3, 0)
         task.wait(0.1)
     end
     
     
-    -- 4. AGGRESSIVE INVOKE LOOP until Pickup Confirmed
     local loopStartTime = tick()
     
-    -- Loop while the item still exists (and up to a maximum of 10 seconds)
-    while findPickupModelAndPart() and (tick() - loopStartTime < 10) do
+    while workspace:FindFirstChild("Key card") and (tick() - loopStartTime < 10) do
         
-        -- The confirmed fix: Repeatedly invoke the server with the ITEMPICKUP Instance
         pcall(function()
-            itemHandler:InvokeServer(pickupPart)
+            itemHandler:InvokeServer(pickupArgument)
         end)
         
-        task.wait(0.1) -- The required cooldown between calls
+        task.wait(0.1)
     end
-    
-    -- 5. FINAL TELEPORT AND CLEANUP
-    rootPart.CFrame = tp4
-    task.wait(0.1)
-    rootPart.CFrame = startCFrame
     
 end)
