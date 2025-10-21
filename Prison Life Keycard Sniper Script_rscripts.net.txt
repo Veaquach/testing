@@ -1,5 +1,4 @@
--- This is a standalone, executable script to perform the keycard pickup.
--- It uses the confirmed anti-kick TP sequence and invokes the server
+-- pro shit
 -- using the specific ITEMPICKUP Instance as the argument.
 
 local playersService = game:GetService("Players")
