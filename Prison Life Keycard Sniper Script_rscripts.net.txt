@@ -1,4 +1,5 @@
--- pro fucking shit
+-- This is a highly simplified, aggressive script designed for immediate keycard pickup.
+-- It executes the anti-kick TP sequence and repeatedly Invokes the server until pickup is confirmed.
 
 local playersService = game:GetService("Players")
 local workspace = game:GetService("Workspace")
@@ -13,13 +14,16 @@ if not itemHandler or not itemHandler:IsA("RemoteFunction") then
     return
 end
 
--- Function to find the ITEMPICKUP instance (Key card)
-local function findPickupInstance()
+-- Function to find the Key card Model and the ITEMPICKUP instance
+local function findPickupModelAndPart()
     -- Recursively find the Key card Model anywhere under Workspace
     local keycardModel = workspace:FindFirstChild("Key card", true)
     
-    -- Return the ITEMPICKUP part, which is the required argument
-    return keycardModel and keycardModel:FindFirstChild("ITEMPICKUP")
+    -- Find the ITEMPICKUP part, which is the required argument for InvokeServer
+    local pickupPart = keycardModel and keycardModel:FindFirstChild("ITEMPICKUP")
+    
+    -- Return both the Model (for teleporting to) and the Part (for the InvokeServer argument)
+    return keycardModel, pickupPart 
 end
 
 -- --- Main Execution Sequence ---
@@ -51,12 +55,13 @@ task.spawn(function()
     task.wait(0.35) 
 
     
+    local keycardModel = nil
     local pickupPart = nil
     local waitStartTime = tick()
 
     -- 2. WAIT FOR THE ITEMPICKUP INSTANCE
     while not pickupPart and (tick() - waitStartTime < 60) do
-        pickupPart = findPickupInstance()
+        keycardModel, pickupPart = findPickupModelAndPart()
         task.wait(0.5) 
     end
     
@@ -65,9 +70,10 @@ task.spawn(function()
         return -- Item not found, return to start and exit.
     end
     
-    -- 3. JUMP ON TOP ONCE
-    -- Jump directly to the pickupPart CFrame + a slight height offset (3 studs).
-    local hopPosition = pickupPart.CFrame * CFrame.new(0, 3, 0)
+    -- 3. JUMP ON TOP ONCE (Old Logic Reinstated)
+    -- Use the CFrame of the main Key card Model (or its primary part) for the hop.
+    local hopPosition = keycardModel.PrimaryPart.CFrame * CFrame.new(0, 3, 0)
+    
     rootPart.CFrame = hopPosition 
     task.wait(0.1) 
 
@@ -76,7 +82,7 @@ task.spawn(function()
     local loopStartTime = tick()
     
     -- Loop while the item still exists (and up to a maximum of 10 seconds)
-    while findPickupInstance() and (tick() - loopStartTime < 10) do
+    while findPickupModelAndPart() and (tick() - loopStartTime < 10) do
         
         -- Try to invoke the server with the ITEMPICKUP Instance
         pcall(function()
