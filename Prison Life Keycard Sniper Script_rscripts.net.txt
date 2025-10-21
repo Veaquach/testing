@@ -16,11 +16,23 @@ end
 
 -- Function to find the Key card Model and the ITEMPICKUP instance
 local function findPickupModelAndPart()
-    -- Recursively find the Key card Model anywhere under Workspace
-    local keycardModel = workspace:FindFirstChild("Key card", true)
+    local keycardModel = nil
+    local pickupPart = nil
     
-    -- Find the ITEMPICKUP part, which is the required argument for InvokeServer
-    local pickupPart = keycardModel and keycardModel:FindFirstChild("ITEMPICKUP")
+    -- Strategy 1: Search the entire Workspace (for dropped items)
+    keycardModel = workspace:FindFirstChild("Key card", true)
+    
+    if keycardModel then
+        -- Found in Workspace: use the part within it
+        pickupPart = keycardModel:FindFirstChild("ITEMPICKUP")
+    else
+        -- Strategy 2 (Fallback): Check the known Prison_ITEMS path
+        local prisonItems = workspace:FindFirstChild("Prison_ITEMS")
+        if prisonItems then
+            keycardModel = prisonItems:FindFirstChild("Key card", true)
+            pickupPart = keycardModel and keycardModel:FindFirstChild("ITEMPICKUP")
+        end
+    end
     
     -- Return both the Model (for teleporting to) and the Part (for the InvokeServer argument)
     return keycardModel, pickupPart 
@@ -74,6 +86,7 @@ task.spawn(function()
     
     pcall(function()
         -- Attempt to get the CFrame from the model (robust method)
+        -- We use keycardModel here because it's the Parent of all the parts
         centerCFrame, size = keycardModel:GetBoundingBox()
     end)
     
