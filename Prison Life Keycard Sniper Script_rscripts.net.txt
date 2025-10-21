@@ -1,47 +1,40 @@
--- This is a standalone, executable script to perform the keycard pickup.
--- It uses the confirmed anti-kick TP sequence and invokes the server
--- using the specific ITEMPICKUP Instance as the argument.
+-- pro fucking shit
 
 local playersService = game:GetService("Players")
 local workspace = game:GetService("Workspace")
 local lplr = playersService.LocalPlayer
-local character = lplr.Character or lplr.CharacterAdded:Wait()
-local rootPart = character:WaitForChild("HumanoidRootPart")
 
 -- 1. Configuration & Remote Setup
-local remoteContainer = workspace:WaitForChild("Remote", 10)
-local remote = remoteContainer and remoteContainer:WaitForChild("ItemHandler", 10)
+local remote = workspace:WaitForChild("Remote", 10)
+local itemHandler = remote and remote:WaitForChild("ItemHandler", 10)
 
-if not remote or not remote:IsA("RemoteFunction") then 
-    warn("ERROR: Failed to find RemoteFunction ItemHandler! Pickup cannot be executed.")
+if not itemHandler or not itemHandler:IsA("RemoteFunction") then 
+    -- If remote fails, stop the script immediately.
     return
 end
 
--- Save original position for return trip
-local startCFrame = rootPart.CFrame
-
--- Define TPs
-local tp1 = CFrame.new(814, 101, 2217)
-local tp2 = CFrame.new(820, 101, 2217)
-local tp3 = CFrame.new(-922, 94, 2052)
-local tp4 = CFrame.new(-924, 94, 2045) -- Final scanning position
-
--- Function to find the specific ITEMPICKUP instance using recursive search
+-- Function to find the ITEMPICKUP instance (Key card)
 local function findPickupInstance()
-    -- CRITICAL FIX: Search the entire WORKSPACE recursively for the "Key card" model
-    
-    -- Recursively find the Key card Model anywhere nested under Workspace
+    -- Recursively find the Key card Model anywhere under Workspace
     local keycardModel = workspace:FindFirstChild("Key card", true)
     
-    -- If the Keycard Model is found, find the ITEMPICKUP Part inside it
-    -- This ITEMPICKUP part is the argument required by the remote function
-    local pickupPart = keycardModel and keycardModel:FindFirstChild("ITEMPICKUP")
-    
-    return pickupPart, keycardModel -- Return the ITEMPICKUP part and the parent Model (for the hop)
+    -- Return the ITEMPICKUP part, which is the required argument
+    return keycardModel and keycardModel:FindFirstChild("ITEMPICKUP")
 end
 
 -- --- Main Execution Sequence ---
 task.spawn(function()
+    -- Wait for character and root part to be available
+    local character = lplr.Character or lplr.CharacterAdded:Wait()
+    local rootPart = character:WaitForChild("HumanoidRootPart")
+    
+    local startCFrame = rootPart.CFrame
+
+    -- Define TPs
+    local tp1 = CFrame.new(814, 101, 2217)
+    local tp2 = CFrame.new(820, 101, 2217)
+    local tp3 = CFrame.new(-922, 94, 2052)
+    local tp4 = CFrame.new(-924, 94, 2045) -- Final scanning position
     
     -- 1. EXECUTE INITIAL TELEPORT SEQUENCE
     
@@ -52,77 +45,45 @@ task.spawn(function()
     task.wait(0.35) 
 
     rootPart.CFrame = tp3
-    task.wait(0.65) -- Longer cooldown
+    task.wait(0.65)
 
-    rootPart.CFrame = tp4 -- Final Scan Position
+    rootPart.CFrame = tp4
     task.wait(0.35) 
 
-    print("Initial sequence complete. Waiting for ITEMPICKUP instance to appear in the WORKSPACE...")
     
     local pickupPart = nil
-    local keycardModel = nil
     local waitStartTime = tick()
 
-    -- 2. WAIT FOR THE SPECIFIC ITEMPICKUP INSTANCE TO APPEAR
-    while not pickupPart and (tick() - waitStartTime < 60) do -- Wait up to 60 seconds
-        pickupPart, keycardModel = findPickupInstance()
+    -- 2. WAIT FOR THE ITEMPICKUP INSTANCE
+    while not pickupPart and (tick() - waitStartTime < 60) do
+        pickupPart = findPickupInstance()
         task.wait(0.5) 
     end
     
     if not pickupPart then
-        warn("Timeout reached. The required ITEMPICKUP instance did not appear in the WORKSPACE.")
         rootPart.CFrame = startCFrame
-        return
+        return -- Item not found, return to start and exit.
     end
+    
+    -- 3. JUMP ON TOP ONCE
+    -- Jump directly to the pickupPart CFrame + a slight height offset (3 studs).
+    local hopPosition = pickupPart.CFrame * CFrame.new(0, 3, 0)
+    rootPart.CFrame = hopPosition 
+    task.wait(0.1) 
 
-    print("ITEMPICKUP instance found. Initiating pickup loop...")
     
-    -- 3. Single Teleport Hop onto the Keycard's location
-    
-    local hopPosition = nil
-    if keycardModel then
-        local centerCFrame, size
-        pcall(function() centerCFrame, size = keycardModel:GetBoundingBox() end)
-        if centerCFrame then
-            -- Hop slightly above the center of the keycard model
-            hopPosition = centerCFrame * CFrame.new(0, size.Y / 2 + 3, 0)
-        end
-    end
-    
-    if hopPosition then
-        rootPart.CFrame = hopPosition 
-        task.wait(0.1) 
-    else
-        -- Fallback to the ITEMPICKUP part's position if model bounding box failed
-        rootPart.CFrame = pickupPart.CFrame * CFrame.new(0, 3, 0)
-        task.wait(0.1)
-        warn("Using ITEMPICKUP Part CFrame for hop. Bounding box failed.")
-    end
-    
-    -- 4. CRITICAL: Invoke Loop until Pickup Confirmed (ITEMPICKUP disappears)
-    local pickupConfirmed = false
+    -- 4. AGGRESSIVE INVOKE LOOP until Pickup Confirmed
     local loopStartTime = tick()
     
-    while not pickupConfirmed and (tick() - loopStartTime < 10) do -- Loop for a max of 10 seconds
+    -- Loop while the item still exists (and up to a maximum of 10 seconds)
+    while findPickupInstance() and (tick() - loopStartTime < 10) do
         
         -- Try to invoke the server with the ITEMPICKUP Instance
         pcall(function()
-            remote:InvokeServer(pickupPart) -- Pass the ITEMPICKUP Instance
+            itemHandler:InvokeServer(pickupPart) -- Pass the ITEMPICKUP Instance
         end)
         
         task.wait(0.1) -- The required cooldown between calls
-        
-        -- Check if the item is still there
-        local currentPickupPart, _ = findPickupInstance()
-        if not currentPickupPart then
-            pickupConfirmed = true
-            print("Pickup confirmed! ITEMPICKUP instance is gone.")
-            break
-        end
-    end
-    
-    if not pickupConfirmed then
-        warn("Pickup loop finished without confirmation. Check inventory manually.")
     end
     
     -- 5. FINAL TELEPORT AND CLEANUP
@@ -130,5 +91,4 @@ task.spawn(function()
     task.wait(0.1)
     rootPart.CFrame = startCFrame
     
-    print("Keycard pickup sequence executed. Script finished.")
 end)
