@@ -1,0 +1,166 @@
+--// SERVICES
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TextChatService = game:GetService("TextChatService")
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+--// CONFIG
+local DARKTRIAD_IMAGE = "rbxassetid://124494375618781"
+local MEOWL_IMAGE = "rbxassetid://17700937473"
+local darktriadActive = false
+local meowlActive = false
+local connections = {}
+local charAddedConn -- for respawn handling
+
+--// FUNCTION: Hide head & accessories
+local function hideCharacter(character)
+    for _, part in pairs(character:GetChildren()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            part.Transparency = 1
+        elseif part:IsA("Accessory") then
+            part.Handle.Transparency = 1
+        end
+    end
+end
+
+--// FUNCTION: Show head & accessories
+local function showCharacter(character)
+    for _, part in pairs(character:GetChildren()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            part.Transparency = 0
+        elseif part:IsA("Accessory") then
+            part.Handle.Transparency = 0
+        end
+    end
+end
+
+--// FUNCTION: Add spinning image to head
+local function addHeadImage(character, imageId, tagName, isActiveFunc)
+    local head = character:WaitForChild("Head")
+    if head:FindFirstChild(tagName) then
+        head[tagName]:Destroy()
+    end
+
+    if not isActiveFunc() then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = tagName
+    billboard.Adornee = head
+    billboard.Size = UDim2.new(2, 0, 2, 0)
+    billboard.StudsOffset = Vector3.new(0, 0, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = head
+
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(1, 0, 1, 0)
+    container.BackgroundTransparency = 1
+    container.AnchorPoint = Vector2.new(0.5, 0.5)
+    container.Position = UDim2.new(0.5, 0, 0.5, 0)
+    container.Parent = billboard
+
+    local img = Instance.new("ImageLabel")
+    img.Size = UDim2.new(1, 0, 1, 0)
+    img.Position = UDim2.new(0.5, 0, 0.5, 0)
+    img.AnchorPoint = Vector2.new(0.5, 0.5)
+    img.BackgroundTransparency = 1
+    img.Image = imageId
+    img.Parent = container
+
+    local angle = 0
+    local conn
+    conn = RunService.RenderStepped:Connect(function(dt)
+        if not isActiveFunc() or not head.Parent then
+            conn:Disconnect()
+            return
+        end
+
+        -- Spin image
+        angle = angle + dt * 180
+        img.Rotation = angle % 360
+
+        -- Fade based on distance
+        local dist = (camera.CFrame.Position - head.Position).Magnitude
+        local fadeStart = 2
+        local fadeEnd = 0.5
+        img.ImageTransparency = math.clamp((fadeStart - dist) / (fadeStart - fadeEnd), 0, 1)
+    end)
+    table.insert(connections, conn)
+end
+
+--// TOGGLE FUNCTIONS
+local function disableAll()
+    darktriadActive = false
+    meowlActive = false
+    showCharacter(player.Character)
+
+    local head = player.Character:FindFirstChild("Head")
+    if head then
+        if head:FindFirstChild("DarkTriadBillboard") then head.DarkTriadBillboard:Destroy() end
+        if head:FindFirstChild("MeowlBillboard") then head.MeowlBillboard:Destroy() end
+    end
+
+    for _, conn in pairs(connections) do
+        if conn then conn:Disconnect() end
+    end
+    connections = {}
+
+    if charAddedConn then
+        charAddedConn:Disconnect()
+        charAddedConn = nil
+    end
+end
+
+local function toggleDarkTriad()
+    if darktriadActive then
+        disableAll()
+        print("DarkTriad disabled!")
+    else
+        disableAll()
+        darktriadActive = true
+        hideCharacter(player.Character)
+        addHeadImage(player.Character, DARKTRIAD_IMAGE, "DarkTriadBillboard", function() return darktriadActive end)
+
+        charAddedConn = player.CharacterAdded:Connect(function(char)
+            if darktriadActive then
+                hideCharacter(char)
+                addHeadImage(char, DARKTRIAD_IMAGE, "DarkTriadBillboard", function() return darktriadActive end)
+            end
+        end)
+
+        print("DarkTriad enabled!")
+    end
+end
+
+local function toggleMeowl()
+    if meowlActive then
+        disableAll()
+        print("Meowl disabled!")
+    else
+        disableAll()
+        meowlActive = true
+        hideCharacter(player.Character)
+        addHeadImage(player.Character, MEOWL_IMAGE, "MeowlBillboard", function() return meowlActive end)
+
+        charAddedConn = player.CharacterAdded:Connect(function(char)
+            if meowlActive then
+                hideCharacter(char)
+                addHeadImage(char, MEOWL_IMAGE, "MeowlBillboard", function() return meowlActive end)
+            end
+        end)
+
+        print("Meowl enabled!")
+    end
+end
+
+--// CHAT COMMAND HANDLER
+TextChatService.OnIncomingMessage = function(message)
+    local content = message.Text:lower()
+    if content == ".darktriad" then
+        toggleDarkTriad()
+    elseif content == ".meowl" then
+        toggleMeowl()
+    end
+end
+
+print("DarkTriad & Meowl script loaded! Type .darktriad or .meowl in chat to toggle.")
