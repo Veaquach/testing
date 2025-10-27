@@ -1,4 +1,4 @@
---// SERVICES
+--// tuff shit
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TextChatService = game:GetService("TextChatService")
@@ -12,37 +12,11 @@ local activeMode = nil -- "dark" or "meowl"
 local connections = {}
 local charAddedConn
 
---// FUNCTIONS
-
--- Hide all body parts except HRP, make head nearly invisible for BillboardGui
-local function hideCharacter(character)
-    for _, part in pairs(character:GetChildren()) do
-        if part:IsA("BasePart") then
-            if part.Name == "Head" then
-                part.Transparency = 0.99
-            elseif part.Name ~= "HumanoidRootPart" then
-                part.Transparency = 1
-            end
-        elseif part:IsA("Accessory") and part:FindFirstChild("Handle") then
-            part.Handle.Transparency = 1
-        end
-    end
-end
-
--- Show all parts
-local function showCharacter(character)
-    for _, part in pairs(character:GetChildren()) do
-        if part:IsA("BasePart") then
-            part.Transparency = 0
-        elseif part:IsA("Accessory") and part:FindFirstChild("Handle") then
-            part.Handle.Transparency = 0
-        end
-    end
-end
-
--- Add BillboardGui to head
+--// FUNCTION: Add image to head
 local function addHeadImage(character, imageId, tagName, spin)
     local head = character:WaitForChild("Head")
+    
+    -- Remove old Billboard if exists
     if head:FindFirstChild(tagName) then
         head[tagName]:Destroy()
     end
@@ -50,8 +24,8 @@ local function addHeadImage(character, imageId, tagName, spin)
     local billboard = Instance.new("BillboardGui")
     billboard.Name = tagName
     billboard.Adornee = head
-    billboard.Size = UDim2.new(2,0,2,0)
-    billboard.StudsOffset = Vector3.new(0,0,0)
+    billboard.Size = UDim2.new(2, 0, 2, 0)
+    billboard.StudsOffset = Vector3.new(0, 0, 0)
     billboard.AlwaysOnTop = true
     billboard.Parent = head
 
@@ -59,12 +33,12 @@ local function addHeadImage(character, imageId, tagName, spin)
     frame.Size = UDim2.new(1,0,1,0)
     frame.BackgroundTransparency = 1
     frame.AnchorPoint = Vector2.new(0.5,0.5)
-    frame.Position = UDim2.new(0.5,0,0.5,0)
+    frame.Position = UDim2.new(0.5,0.5,0.5,0)
     frame.Parent = billboard
 
     local img = Instance.new("ImageLabel")
     img.Size = UDim2.new(1,0,1,0)
-    img.Position = UDim2.new(0.5,0,0.5,0)
+    img.Position = UDim2.new(0.5,0.5,0.5,0)
     img.AnchorPoint = Vector2.new(0.5,0.5)
     img.BackgroundTransparency = 1
     img.Image = imageId
@@ -73,12 +47,12 @@ local function addHeadImage(character, imageId, tagName, spin)
     local angle = 0
     local conn
     conn = RunService.RenderStepped:Connect(function(dt)
-        if not activeMode or not head.Parent then
+        if activeMode ~= tagName:lower() or not head.Parent then
             conn:Disconnect()
             return
         end
 
-        -- Spin only if requested
+        -- Only spin if requested
         if spin then
             angle = angle + dt * 180
             img.Rotation = angle % 360
@@ -86,57 +60,50 @@ local function addHeadImage(character, imageId, tagName, spin)
 
         -- Fade based on distance
         local dist = (camera.CFrame.Position - head.Position).Magnitude
-        local fadeStart = 2
-        local fadeEnd = 0.5
+        local fadeStart, fadeEnd = 2, 0.5
         img.ImageTransparency = math.clamp((fadeStart - dist)/(fadeStart - fadeEnd),0,1)
     end)
 
     table.insert(connections, conn)
 end
 
--- Disable all
+--// Disable all head images
 local function disableAll()
     activeMode = nil
-    showCharacter(player.Character)
     local head = player.Character:FindFirstChild("Head")
     if head then
-        if head:FindFirstChild("DarkTriadBillboard") then head.DarkTriadBillboard:Destroy() end
-        if head:FindFirstChild("MeowlBillboard") then head.MeowlBillboard:Destroy() end
+        if head:FindFirstChild("darktriadbillboard") then head.darktriadbillboard:Destroy() end
+        if head:FindFirstChild("meowlbillboard") then head.meowlbillboard:Destroy() end
     end
     for _, conn in pairs(connections) do if conn then conn:Disconnect() end end
     connections = {}
 end
 
--- Toggle DarkTriad (spinning)
+--// Toggle functions
 local function toggleDarkTriad()
-    if activeMode == "dark" then
+    if activeMode == "darktriad" then
         disableAll()
     else
         disableAll()
-        activeMode = "dark"
-        hideCharacter(player.Character)
+        activeMode = "darktriad"
         addHeadImage(player.Character, DARKTRIAD_IMAGE, "DarkTriadBillboard", true)
         charAddedConn = player.CharacterAdded:Connect(function(char)
-            if activeMode == "dark" then
-                hideCharacter(char)
+            if activeMode == "darktriad" then
                 addHeadImage(char, DARKTRIAD_IMAGE, "DarkTriadBillboard", true)
             end
         end)
     end
 end
 
--- Toggle Meowl (static)
 local function toggleMeowl()
     if activeMode == "meowl" then
         disableAll()
     else
         disableAll()
         activeMode = "meowl"
-        hideCharacter(player.Character)
         addHeadImage(player.Character, MEOWL_IMAGE, "MeowlBillboard", false)
         charAddedConn = player.CharacterAdded:Connect(function(char)
             if activeMode == "meowl" then
-                hideCharacter(char)
                 addHeadImage(char, MEOWL_IMAGE, "MeowlBillboard", false)
             end
         end)
