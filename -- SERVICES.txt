@@ -1,62 +1,66 @@
--- tuff shit
+--// SERVICES
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local TextChatService = game:GetService("TextChatService")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 --// CONFIG
 local DARKTRIAD_IMAGE = "rbxassetid://124494375618781"
 local MEOWL_IMAGE = "rbxassetid://17700937473"
-
-local darktriadActive = false
-local meowlActive = false
+local activeMode = nil -- "dark" or "meowl"
 local connections = {}
 local charAddedConn
 
--- Helper to hide head & accessories
-local function hideHeadAndAccessories(character, hide)
-    local head = character:FindFirstChild("Head")
-    if head then
-        head.Transparency = hide and 1 or 0
-        for _, child in ipairs(head:GetChildren()) do
-            if child:IsA("Decal") or child:IsA("Face") then
-                child.Transparency = hide and 1 or 0
+--// FUNCTIONS
+
+-- Hide all body parts except HRP, make head nearly invisible for BillboardGui
+local function hideCharacter(character)
+    for _, part in pairs(character:GetChildren()) do
+        if part:IsA("BasePart") then
+            if part.Name == "Head" then
+                part.Transparency = 0.99
+            elseif part.Name ~= "HumanoidRootPart" then
+                part.Transparency = 1
             end
-        end
-    end
-    for _, acc in ipairs(character:GetChildren()) do
-        if acc:IsA("Accessory") then
-            if acc:FindFirstChild("Handle") then
-                acc.Handle.Transparency = hide and 1 or 0
-            end
+        elseif part:IsA("Accessory") and part:FindFirstChild("Handle") then
+            part.Handle.Transparency = 1
         end
     end
 end
 
---// FUNCTION: Add spinning image to head
-local function addHeadImage(character, imageId)
-    local head = character:WaitForChild("Head")
-    -- Remove old BillboardGui if exists
-    for _, child in ipairs(head:GetChildren()) do
-        if child:IsA("BillboardGui") and (child.Name == "DarkTriadBillboard" or child.Name == "MeowlBillboard") then
-            child:Destroy()
+-- Show all parts
+local function showCharacter(character)
+    for _, part in pairs(character:GetChildren()) do
+        if part:IsA("BasePart") then
+            part.Transparency = 0
+        elseif part:IsA("Accessory") and part:FindFirstChild("Handle") then
+            part.Handle.Transparency = 0
         end
+    end
+end
+
+-- Add BillboardGui to head
+local function addHeadImage(character, imageId, tagName, spin)
+    local head = character:WaitForChild("Head")
+    if head:FindFirstChild(tagName) then
+        head[tagName]:Destroy()
     end
 
     local billboard = Instance.new("BillboardGui")
-    billboard.Name = meowlActive and "MeowlBillboard" or "DarkTriadBillboard"
+    billboard.Name = tagName
     billboard.Adornee = head
     billboard.Size = UDim2.new(2,0,2,0)
     billboard.StudsOffset = Vector3.new(0,0,0)
     billboard.AlwaysOnTop = true
     billboard.Parent = head
 
-    local container = Instance.new("Frame")
-    container.Size = UDim2.new(1,0,1,0)
-    container.BackgroundTransparency = 1
-    container.AnchorPoint = Vector2.new(0.5,0.5)
-    container.Position = UDim2.new(0.5,0,0.5,0)
-    container.Parent = billboard
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1,0,1,0)
+    frame.BackgroundTransparency = 1
+    frame.AnchorPoint = Vector2.new(0.5,0.5)
+    frame.Position = UDim2.new(0.5,0,0.5,0)
+    frame.Parent = billboard
 
     local img = Instance.new("ImageLabel")
     img.Size = UDim2.new(1,0,1,0)
@@ -64,82 +68,87 @@ local function addHeadImage(character, imageId)
     img.AnchorPoint = Vector2.new(0.5,0.5)
     img.BackgroundTransparency = 1
     img.Image = imageId
-    img.Parent = container
+    img.Parent = frame
 
-    -- Spin & fade logic
     local angle = 0
     local conn
     conn = RunService.RenderStepped:Connect(function(dt)
-        if (meowlActive and not meowlActive) or (darktriadActive and not darktriadActive) or not head.Parent then
+        if not activeMode or not head.Parent then
             conn:Disconnect()
             return
         end
-        angle = angle + dt*180
-        img.Rotation = angle%360
+
+        -- Spin only if requested
+        if spin then
+            angle = angle + dt * 180
+            img.Rotation = angle % 360
+        end
+
+        -- Fade based on distance
         local dist = (camera.CFrame.Position - head.Position).Magnitude
-        local fadeStart, fadeEnd = 2,0.5
-        img.ImageTransparency = math.clamp((fadeStart - dist)/(fadeStart-fadeEnd),0,1)
+        local fadeStart = 2
+        local fadeEnd = 0.5
+        img.ImageTransparency = math.clamp((fadeStart - dist)/(fadeStart - fadeEnd),0,1)
     end)
+
     table.insert(connections, conn)
 end
 
---// COMMAND HANDLER
-local function HandleCommand(cmd,args)
-    cmd = cmd:lower()
-    if cmd == ".darktriad" then
-        darktriadActive = not darktriadActive
-        if darktriadActive then
-            if player.Character then addHeadImage(player.Character,DARKTRIAD_IMAGE) end
-            if not charAddedConn then
-                charAddedConn = player.CharacterAdded:Connect(function(c)
-                    if darktriadActive then addHeadImage(c,DARKTRIAD_IMAGE) end
-                end)
+-- Disable all
+local function disableAll()
+    activeMode = nil
+    showCharacter(player.Character)
+    local head = player.Character:FindFirstChild("Head")
+    if head then
+        if head:FindFirstChild("DarkTriadBillboard") then head.DarkTriadBillboard:Destroy() end
+        if head:FindFirstChild("MeowlBillboard") then head.MeowlBillboard:Destroy() end
+    end
+    for _, conn in pairs(connections) do if conn then conn:Disconnect() end end
+    connections = {}
+end
+
+-- Toggle DarkTriad (spinning)
+local function toggleDarkTriad()
+    if activeMode == "dark" then
+        disableAll()
+    else
+        disableAll()
+        activeMode = "dark"
+        hideCharacter(player.Character)
+        addHeadImage(player.Character, DARKTRIAD_IMAGE, "DarkTriadBillboard", true)
+        charAddedConn = player.CharacterAdded:Connect(function(char)
+            if activeMode == "dark" then
+                hideCharacter(char)
+                addHeadImage(char, DARKTRIAD_IMAGE, "DarkTriadBillboard", true)
             end
-            print("DarkTriad enabled!")
-        else
-            if player.Character then
-                local head = player.Character:FindFirstChild("Head")
-                if head and head:FindFirstChild("DarkTriadBillboard") then
-                    head.DarkTriadBillboard:Destroy()
-                end
-            end
-            for _, conn in pairs(connections) do if conn then conn:Disconnect() end end
-            connections = {}
-            print("DarkTriad disabled!")
-        end
-    elseif cmd == ".meowl" then
-        meowlActive = not meowlActive
-        hideHeadAndAccessories(player.Character, meowlActive)
-        if meowlActive then
-            if player.Character then addHeadImage(player.Character,MEOWL_IMAGE) end
-            if not charAddedConn then
-                charAddedConn = player.CharacterAdded:Connect(function(c)
-                    if meowlActive then 
-                        hideHeadAndAccessories(c,true)
-                        addHeadImage(c,MEOWL_IMAGE) 
-                    end
-                end)
-            end
-            print("Meowl enabled!")
-        else
-            if player.Character then
-                local head = player.Character:FindFirstChild("Head")
-                if head and head:FindFirstChild("MeowlBillboard") then
-                    head.MeowlBillboard:Destroy()
-                end
-                hideHeadAndAccessories(player.Character,false)
-            end
-            for _, conn in pairs(connections) do if conn then conn:Disconnect() end end
-            connections = {}
-            print("Meowl disabled!")
-        end
+        end)
     end
 end
 
--- Chat listener
-player.Chatted:Connect(function(msg)
-    local args = msg:split(" ")
-    local cmd = args[1]
-    table.remove(args,1)
-    HandleCommand(cmd,args)
-end)
+-- Toggle Meowl (static)
+local function toggleMeowl()
+    if activeMode == "meowl" then
+        disableAll()
+    else
+        disableAll()
+        activeMode = "meowl"
+        hideCharacter(player.Character)
+        addHeadImage(player.Character, MEOWL_IMAGE, "MeowlBillboard", false)
+        charAddedConn = player.CharacterAdded:Connect(function(char)
+            if activeMode == "meowl" then
+                hideCharacter(char)
+                addHeadImage(char, MEOWL_IMAGE, "MeowlBillboard", false)
+            end
+        end)
+    end
+end
+
+--// CHAT COMMANDS
+TextChatService.OnIncomingMessage = function(message)
+    local content = message.Text:lower()
+    if content == ".darktriad" then
+        toggleDarkTriad()
+    elseif content == ".meowl" then
+        toggleMeowl()
+    end
+end
