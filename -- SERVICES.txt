@@ -86,10 +86,10 @@ local function toggleDarkTriad()
     else
         disableAll()
         activeMode = "darktriad"
-        addHeadImage(player.Character, DARKTRIAD_IMAGE, "DarkTriadBillboard", true)
+        addHeadImage(player.Character, DARKTRIAD_IMAGE, "darktriad", true)
         charAddedConn = player.CharacterAdded:Connect(function(char)
             if activeMode == "darktriad" then
-                addHeadImage(char, DARKTRIAD_IMAGE, "DarkTriadBillboard", true)
+                addHeadImage(char, DARKTRIAD_IMAGE, "darktriad", true)
             end
         end)
     end
